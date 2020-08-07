@@ -71,10 +71,9 @@ namespace Microsoft.Extensions.Logging.Console
         private void CreateDefaultLogMessage<TState>(TextWriter textWriter, in LogEntry<TState> logEntry, string message, IExternalScopeProvider scopeProvider)
         {
             bool singleLine = FormatterOptions.SingleLine;
-            bool includeExceptionData = FormatterOptions.IncludeExceptionDataDictionary;
             int eventId = logEntry.EventId.Id;
             Exception exception = logEntry.Exception;
-
+            bool includeExceptionData = FormatterOptions.IncludeExceptionDataDictionary;
             // Example:
             // info: ConsoleApp.Program[10]
             //       Request received
@@ -96,7 +95,7 @@ namespace Microsoft.Extensions.Logging.Console
 
             if (exception != null)
             {
-                    WriteMessage(textWriter, exception.ToString(includeData: true), singleLine);
+                    WriteMessage(textWriter, exception.ToString(includeExceptionData), singleLine);
             }
 
             if (singleLine)

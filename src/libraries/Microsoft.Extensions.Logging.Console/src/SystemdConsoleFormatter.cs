@@ -43,6 +43,7 @@ namespace Microsoft.Extensions.Logging.Console
             string category = logEntry.Category;
             int eventId = logEntry.EventId.Id;
             Exception exception = logEntry.Exception;
+            bool includeExceptionData = FormatterOptions.IncludeExceptionDataDictionary;
             // systemd reads messages from standard out line-by-line in a '<pri>message' format.
             // newline characters are treated as message delimiters, so we must replace them.
             // Messages longer than the journal LineMax setting (default: 48KB) are cropped.
@@ -83,7 +84,7 @@ namespace Microsoft.Extensions.Logging.Console
             if (exception != null)
             {
                 textWriter.Write(' ');
-                WriteReplacingNewLine(textWriter, exception.ToString());
+                WriteReplacingNewLine(textWriter, exception.ToString(includeExceptionData));
             }
 
             // newline delimiter

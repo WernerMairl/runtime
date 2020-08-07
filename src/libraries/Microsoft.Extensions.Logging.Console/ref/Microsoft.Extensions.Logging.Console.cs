@@ -40,6 +40,7 @@ namespace Microsoft.Extensions.Logging.Console
         public bool IncludeScopes { get { throw null; } set { } }
         public string TimestampFormat { get { throw null; } set { } }
         public bool UseUtcTimestamp { get { throw null; } set { } }
+        public bool IncludeExceptionDataDictionary { get { throw null; } set { } }
     }
     [System.ObsoleteAttribute("ConsoleLoggerFormat has been deprecated.", false)]
     public enum ConsoleLoggerFormat
