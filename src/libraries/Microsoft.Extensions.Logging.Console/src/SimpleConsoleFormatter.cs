@@ -96,22 +96,9 @@ namespace Microsoft.Extensions.Logging.Console
 
             if (exception != null)
             {
-                // exception message
-                if (includeExceptionData && (exception.Data != null) && exception.Data.Count > 0)
-                {
-                    List<string> lines = new List<string>(exception.Data.Count);
-                    foreach (DictionaryEntry entry in exception.Data)
-                    {
-                        lines.Add(string.Format("{0}={1}", entry.Key, entry.Value));
-                    }
-                    string separator = singleLine ? string.Empty : Environment.NewLine;
-                    WriteMessage(textWriter, exception.ToString() + separator + string.Join(separator, lines), singleLine);
-                }
-                else
-                {
-                    WriteMessage(textWriter, exception.ToString(), singleLine);
-                }
+                    WriteMessage(textWriter, exception.ToString(includeData: true), singleLine);
             }
+
             if (singleLine)
             {
                 textWriter.Write(Environment.NewLine);

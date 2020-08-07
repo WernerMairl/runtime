@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.Serialization;
 
@@ -117,13 +118,26 @@ namespace System
             info.AddValue("WatsonBuckets", SerializationWatsonBuckets, typeof(byte[])); // Do not rename (binary serialization)
         }
 
-        public override string ToString()
+        private string? GetDataString()
+        {
+            if ((_data == null) || (_data.Count==0)) return null;
+
+                List<string> lines = new List<string>(_data.Count);
+                foreach (DictionaryEntry entry in _data)
+                {
+                    lines.Add(string.Format("{0}={1}", entry.Key, entry.Value));
+                }
+                return string.Join(Environment.NewLineConst, lines);
+        }
+
+        public string ToString(bool includeData )
         {
             string className = GetClassName();
             string? message = Message;
             string innerExceptionString = _innerException?.ToString() ?? "";
             string endOfInnerExceptionResource = SR.Exception_EndOfInnerExceptionStack;
             string? stackTrace = StackTrace;
+            string? dataString = includeData ? GetDataString() : null;
 
             // Calculate result string length
             int length = className.Length;
@@ -141,6 +155,10 @@ namespace System
                 {
                     length += Environment.NewLineConst.Length + stackTrace.Length;
                 }
+                if (dataString != null)
+                {
+                    length += Environment.NewLineConst.Length + dataString.Length;
+                }
             }
 
             // Create the string
@@ -154,6 +172,13 @@ namespace System
                 Write(": ", ref resultSpan);
                 Write(message, ref resultSpan);
             }
+
+            if (dataString != null)
+            {
+                Write(Environment.NewLineConst, ref resultSpan);
+                Write(dataString, ref resultSpan);
+            }
+
             if (_innerException != null)
             {
                 Write(Environment.NewLineConst, ref resultSpan);
@@ -178,6 +203,11 @@ namespace System
                 source.AsSpan().CopyTo(dest);
                 dest = dest.Slice(source.Length);
             }
+        }
+
+        public override string ToString()
+        {
+            return ToString(includeData:false);
         }
 
         protected event EventHandler<SafeSerializationEventArgs>? SerializeObjectState
