@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -24,6 +25,88 @@ namespace Microsoft.Extensions.Logging.Console
             _optionsReloadToken = options.OnChange(ReloadLoggerOptions);
         }
 
+        private static List<Exception> GetInnerExceptions(Exception exception)
+        {
+            List<Exception> result = new List<Exception>();
+            if (exception.InnerException != null)
+            {
+                result.Add(exception.InnerException);
+            }
+            AggregateException aggregated = exception as AggregateException;
+            if (aggregated != null)
+            {
+                foreach (var inner in aggregated.InnerExceptions)
+                {
+                    if (!result.Contains(inner)) //aggregated.InnerExceptions.First() may be == aggregated.InnerException
+                    {
+                        result.Add(inner);
+                    }
+                }
+            }
+            return result;
+        }
+
+        private static void WriteException(Utf8JsonWriter writer, Exception exception, int maxDepth, bool includePropertyName)
+        {
+            if (includePropertyName)
+            {
+                writer.WriteStartObject(nameof(Exception));
+            }
+            else
+            {
+                writer.WriteStartObject();
+            }
+            writer.WriteString(nameof(exception.Message), exception.Message.ToString());
+            writer.WriteString("Type", exception.GetType().ToString());
+
+            writer.WriteStartArray(nameof(exception.StackTrace));
+            {
+                string stackTrace = exception?.StackTrace;
+                if (stackTrace != null)
+                {
+#if NETCOREAPP
+                    foreach (var stackTraceLines in stackTrace?.Split(Environment.NewLine))
+#else
+                            foreach (var stackTraceLines in stackTrace?.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
+#endif
+                    {
+                        writer.WriteStringValue(stackTraceLines);
+                    }
+                }
+            }
+            writer.WriteEndArray();
+
+            writer.WriteNumber(nameof(exception.HResult), exception.HResult);
+
+            if ((exception.Data != null) && (exception.Data.Count > 0))
+            {
+               // writer.WriteStartArray(nameof(Exception.Data));
+                writer.WriteStartObject(nameof(Exception.Data));
+                foreach (DictionaryEntry entry in exception.Data)
+                {
+                    writer.WriteString(entry.Key.ToString(), $"{entry.Value}");
+                }
+                //writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            if (maxDepth>0)
+            {
+                var innerExceptions = GetInnerExceptions(exception);
+                if (innerExceptions.Count > 0)
+                {
+                    writer.WriteStartArray(nameof(AggregateException.InnerExceptions));
+                    {
+                        foreach (var ie in innerExceptions)
+                        {
+                            WriteException(writer, ie, maxDepth -1, false);
+                        }
+                    }
+                    writer.WriteEndArray();
+                }
+            }
+            writer.WriteEndObject();
+        }
+
         public override void Write<TState>(in LogEntry<TState> logEntry, IExternalScopeProvider scopeProvider, TextWriter textWriter)
         {
             string message = logEntry.Formatter(logEntry.State, logEntry.Exception);
@@ -35,6 +118,7 @@ namespace Microsoft.Extensions.Logging.Console
             string category = logEntry.Category;
             int eventId = logEntry.EventId.Id;
             Exception exception = logEntry.Exception;
+            bool includeExceptionData = FormatterOptions.IncludeExceptionDataDictionary;
             const int DefaultBufferSize = 1024;
             using (var output = new PooledByteBufferWriter(DefaultBufferSize))
             {
@@ -56,25 +140,7 @@ namespace Microsoft.Extensions.Logging.Console
 
                     if (exception != null)
                     {
-                        writer.WriteStartObject(nameof(Exception));
-                        writer.WriteString(nameof(exception.Message), exception.Message.ToString());
-                        writer.WriteString("Type", exception.GetType().ToString());
-                        writer.WriteStartArray(nameof(exception.StackTrace));
-                        string stackTrace = exception?.StackTrace;
-                        if (stackTrace != null)
-                        {
-#if NETCOREAPP
-                            foreach (var stackTraceLines in stackTrace?.Split(Environment.NewLine))
-#else
-                            foreach (var stackTraceLines in stackTrace?.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
-#endif
-                            {
-                                writer.WriteStringValue(stackTraceLines);
-                            }
-                        }
-                        writer.WriteEndArray();
-                        writer.WriteNumber(nameof(exception.HResult), exception.HResult);
-                        writer.WriteEndObject();
+                        WriteException(writer, exception, 1000, true);
                     }
 
                     if (logEntry.State is IReadOnlyCollection<KeyValuePair<string, object>> stateDictionary)

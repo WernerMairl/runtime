@@ -2,6 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
@@ -44,5 +48,53 @@ namespace Microsoft.Extensions.Logging.Console.Test
             Assert.Contains("123", write.Message);
             Assert.Contains("SimpleScope", write.Message);
         }
+
+        private static void EnsureStackTrace(params Exception[] exceptions)
+        {
+            if (exceptions == null) return;
+
+            foreach (Exception exception in exceptions)
+            {
+                if (string.IsNullOrEmpty(exception.StackTrace))
+                {
+                    try
+                    {
+                        throw exception;
+                    }
+                    catch
+                    { }
+                }
+                Assert.False(string.IsNullOrEmpty(exception.StackTrace));
+            }
+        }
+
+        [Fact]
+        public void ShouldIncludeExceptionDataDictionary()
+        {
+            JsonConsoleFormatterOptions jsonOptions = new JsonConsoleFormatterOptions {IncludeExceptionDataDictionary=true };
+            var jsonMonitor = new TestFormatterOptionsMonitor<JsonConsoleFormatterOptions>(jsonOptions);
+            var jsonFormatter = new JsonConsoleFormatter(jsonMonitor);
+            Func<string, Exception, string> exceptionFormatter = (state, exception) => state.ToString(); //like Abstractions.LoggingExtensions.MessageFormatter
+
+
+            Exception innerException = new Exception("InnerException");
+            innerException.Data.Add("innerKey1", "innerExceptionDictionaryEntry1");
+            innerException.Data.Add("innerKey2", "innerExceptionDictionaryEntry2");
+
+            Exception rootException = new Exception("Root",innerException);
+            rootException.Data.Add("rootKey1", "rootExceptionDictionaryEntry1");
+            rootException.Data.Add("rootKey2", "rootExceptionDictionaryEntry2");
+
+            EnsureStackTrace(rootException, innerException);
+
+            LogEntry<string> entry = new LogEntry<string>(LogLevel.Error, "category", new EventId(), "mystate", rootException, exceptionFormatter);
+            StringBuilder output = new StringBuilder();
+            using (TextWriter writer = new StringWriter(output))
+            {
+                jsonFormatter.Write<string>(entry, null, writer);
+                System.Diagnostics.Debug.WriteLine(output.ToString());
+            }
+        }
+
     }
 }
