@@ -37,7 +37,7 @@ namespace Microsoft.Extensions.Logging.Console
             {
                 foreach (var inner in aggregated.InnerExceptions)
                 {
-                    if (!result.Contains(inner)) //aggregated.InnerExceptions.First() may be == aggregated.InnerException
+                    if (!result.Contains(inner))
                     {
                         result.Add(inner);
                     }
@@ -56,7 +56,7 @@ namespace Microsoft.Extensions.Logging.Console
             {
                 writer.WriteStartObject();
             }
-            writer.WriteString(nameof(exception.Message), exception.Message.ToString());
+            writer.WriteString(nameof(exception.Message), exception.Message);
             writer.WriteString("Type", exception.GetType().ToString());
 
             writer.WriteStartArray(nameof(exception.StackTrace));
@@ -75,30 +75,17 @@ namespace Microsoft.Extensions.Logging.Console
                 }
             }
             writer.WriteEndArray();
-
             writer.WriteNumber(nameof(exception.HResult), exception.HResult);
-
-            if ((exception.Data != null) && (exception.Data.Count > 0))
-            {
-               // writer.WriteStartArray(nameof(Exception.Data));
-                writer.WriteStartObject(nameof(Exception.Data));
-                foreach (DictionaryEntry entry in exception.Data)
-                {
-                    writer.WriteString(entry.Key.ToString(), $"{entry.Value}");
-                }
-                //writer.WriteEndArray();
-                writer.WriteEndObject();
-            }
             if (maxDepth>0)
             {
-                var innerExceptions = GetInnerExceptions(exception);
-                if (innerExceptions.Count > 0)
+                var innerExceptionList = GetInnerExceptions(exception);
+                if (innerExceptionList.Count > 0)
                 {
                     writer.WriteStartArray(nameof(AggregateException.InnerExceptions));
                     {
-                        foreach (var ie in innerExceptions)
+                        foreach (var innerException in innerExceptionList)
                         {
-                            WriteException(writer, ie, maxDepth -1, false);
+                            WriteException(writer, innerException, maxDepth -1, false);
                         }
                     }
                     writer.WriteEndArray();
@@ -118,8 +105,9 @@ namespace Microsoft.Extensions.Logging.Console
             string category = logEntry.Category;
             int eventId = logEntry.EventId.Id;
             Exception exception = logEntry.Exception;
-            bool includeExceptionData = FormatterOptions.IncludeExceptionDataDictionary;
             const int DefaultBufferSize = 1024;
+            const int MaxWriterDepth = 1_000;
+
             using (var output = new PooledByteBufferWriter(DefaultBufferSize))
             {
                 using (var writer = new Utf8JsonWriter(output, FormatterOptions.JsonWriterOptions))
@@ -140,7 +128,7 @@ namespace Microsoft.Extensions.Logging.Console
 
                     if (exception != null)
                     {
-                        WriteException(writer, exception, 1000, true);
+                        WriteException(writer, exception, MaxWriterDepth, true);
                     }
 
                     if (logEntry.State is IReadOnlyCollection<KeyValuePair<string, object>> stateDictionary)

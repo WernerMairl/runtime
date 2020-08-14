@@ -68,33 +68,41 @@ namespace Microsoft.Extensions.Logging.Console.Test
             }
         }
 
-        [Fact]
-        public void ShouldIncludeExceptionDataDictionary()
+        private string GetJson(Exception exception)
         {
-            JsonConsoleFormatterOptions jsonOptions = new JsonConsoleFormatterOptions {IncludeExceptionDataDictionary=true };
+            if (exception == null) throw new ArgumentNullException(nameof(exception));
+            JsonConsoleFormatterOptions jsonOptions = new JsonConsoleFormatterOptions();
             var jsonMonitor = new TestFormatterOptionsMonitor<JsonConsoleFormatterOptions>(jsonOptions);
             var jsonFormatter = new JsonConsoleFormatter(jsonMonitor);
-            Func<string, Exception, string> exceptionFormatter = (state, exception) => state.ToString(); //like Abstractions.LoggingExtensions.MessageFormatter
-
-
-            Exception innerException = new Exception("InnerException");
-            innerException.Data.Add("innerKey1", "innerExceptionDictionaryEntry1");
-            innerException.Data.Add("innerKey2", "innerExceptionDictionaryEntry2");
-
-            Exception rootException = new Exception("Root",innerException);
-            rootException.Data.Add("rootKey1", "rootExceptionDictionaryEntry1");
-            rootException.Data.Add("rootKey2", "rootExceptionDictionaryEntry2");
-
-            EnsureStackTrace(rootException, innerException);
-
-            LogEntry<string> entry = new LogEntry<string>(LogLevel.Error, "category", new EventId(), "mystate", rootException, exceptionFormatter);
+            Func<string, Exception, string> exceptionFormatter = (state, exception) => state.ToString();
+            LogEntry<string> entry = new LogEntry<string>(LogLevel.Error, string.Empty, new EventId(), string.Empty, exception, exceptionFormatter);
             StringBuilder output = new StringBuilder();
             using (TextWriter writer = new StringWriter(output))
             {
                 jsonFormatter.Write<string>(entry, null, writer);
-                System.Diagnostics.Debug.WriteLine(output.ToString());
             }
+            return output.ToString();
         }
 
+        [Fact]
+        public void ShouldContainInnerException()
+        {
+            Exception rootException = new Exception("root", new Exception("inner"));
+            EnsureStackTrace(rootException, rootException.InnerException);
+            string json = GetJson(rootException);
+            Assert.Contains(rootException.Message, json);
+            Assert.Contains(rootException.InnerException.Message, json);
+        }
+
+        [Fact]
+        public void ShouldContainAggregateExceptions()
+        {
+            AggregateException rootException = new AggregateException("aggregate", new Exception("leaf1"), new Exception("leaf2"), new Exception("leaf3"));
+            EnsureStackTrace(rootException);
+            EnsureStackTrace(rootException.InnerExceptions.ToArray());
+            string json = GetJson(rootException);
+            Assert.Contains(rootException.Message, json);
+            rootException.InnerExceptions.ToList().ForEach((inner) => Assert.Contains(inner.Message, json));
+        }
     }
 }
