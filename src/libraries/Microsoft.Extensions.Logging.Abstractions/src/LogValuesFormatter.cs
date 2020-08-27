@@ -117,7 +117,7 @@ namespace Microsoft.Extensions.Logging
             object[] formattedValues = values;
             if (values != null)
             {
-                formattedValues = (object[])Array.CreateInstance(typeof(object), values.Length);
+                formattedValues = new object[values.Length];
                 for (int i = 0; i < values.Length; i++)
                 {
                     formattedValues[i] = FormatArgument(values[i]);
